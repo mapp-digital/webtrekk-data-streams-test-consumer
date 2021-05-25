@@ -1,7 +1,5 @@
-package com.webtrekk.playground.kafkaconsumer;
+package com.webtrekk.datastreams.kafkaconsumer;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVPrinter;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -11,10 +9,15 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.log4j.BasicConfigurator;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
@@ -22,36 +25,33 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.*;
 
-import static com.webtrekk.playground.kafkaconsumer.ConfigKeys.*;
+import static com.webtrekk.datastreams.kafkaconsumer.ConfigKeys.*;
 
 public class KafkaConsumerExample {
 
-    private static final DecimalFormat df = new DecimalFormat("#.#");
+    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerExample.class);
 
+    private static final DecimalFormat decimalFormat = new DecimalFormat("#.#");
     private static final DateFormat dateFormat = initDateFormat();
 
-    private static final String defaultConfigFile = "application";
     private static ResourceBundle config = null;
 
     public static void main(String[] args) throws IOException {
         config = loadResourceBundle(args);
-
-        Duration pollTimeOut = Duration.ofMillis(Long.parseLong(config.getString(PollTimeout)));
-        boolean enableKafkaClientLogs = Boolean.parseBoolean(config.getString(EnableKafkaClientLogs));
         boolean enableCsvLogs = Boolean.parseBoolean(config.getString(EnableCsvLogs));
+        CSVLogger CSV_LOGGER = new CSVLogger(enableCsvLogs);
 
+        boolean enableKafkaClientLogs = Boolean.parseBoolean(config.getString(EnableKafkaInfoLogs));
         if (enableKafkaClientLogs) {
-            BasicConfigurator.configure();
+            LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+            Configuration conf = ctx.getConfiguration();
+            conf.getLoggerConfig("org.apache.kafka").setLevel(Level.DEBUG);
+            ctx.updateLoggers(conf);
         }
 
         MyKafkaConsumerFactory kafkaConsumerFactory = new MyKafkaConsumerFactory();
         KafkaConsumer<byte[], String> consumer = kafkaConsumerFactory.getConsumer();
-
-        List<String> headersRecords = Arrays.asList("consumeTimestamp", "kafkaPartition", "kafkaOffset", "keySize", "valueSize", "recordTimestamp", "record");
-        CSVPrinter csvRecords = getCsvPrinter("record_sizes.csv", headersRecords);
-
-        List<String> headersMeta = Arrays.asList("timestamp", "p0Records", "p0Size", "p0Lag", "p1Records", "p1Size", "p1Lag", "p2Records", "p2Size", "p2Lag", "pollDuration", "commitDuration");
-        CSVPrinter csvMeta = getCsvPrinter("meta.csv", headersMeta);
+        Duration pollTimeout = Duration.ofMillis(Long.parseLong(config.getString(PollTimeout)));
 
         Map<Integer, Integer> numberOfRecords = new HashMap<>();
         Map<Integer, Integer> sizeOfRecords = new HashMap<>();
@@ -70,7 +70,7 @@ public class KafkaConsumerExample {
         long startMillis = System.currentTimeMillis();
         while (true) {
             long startPollMillis = System.currentTimeMillis();
-            ConsumerRecords<byte[], String> records = consumer.poll(pollTimeOut);
+            ConsumerRecords<byte[], String> records = consumer.poll(pollTimeout);
             long pollDurationMillis = System.currentTimeMillis() - startPollMillis;
 
             String consumeTs = dateFormat.format(new Date(startPollMillis));
@@ -108,9 +108,7 @@ public class KafkaConsumerExample {
                 consumedPartitions.add(partition);
 
                 String recordTs = dateFormat.format(new Date(record.timestamp()));
-                if (enableCsvLogs) {
-                    csvRecords.printRecord(consumeTs, partition, record.offset(), keySize, valueSize, recordTs, record.value());
-                }
+                CSV_LOGGER.logRecordInformation(consumeTs, record, keySize, valueSize, partition, recordTs);
             }
 
             consumedPartitions.forEach(consumedPartition -> {
@@ -127,23 +125,7 @@ public class KafkaConsumerExample {
             }
             long commitDurationMillis = System.currentTimeMillis() - beginCommitMillis;
 
-            if (enableCsvLogs) {
-                csvMeta.printRecord(consumeTs,
-                        numberOfRecords.getOrDefault(0, 0),
-                        sizeOfRecords.getOrDefault(0, 0),
-                        maxLags.getOrDefault(0, 0L),
-                        numberOfRecords.getOrDefault(1, 0),
-                        sizeOfRecords.getOrDefault(1, 0),
-                        maxLags.getOrDefault(1, 0L),
-                        numberOfRecords.getOrDefault(2, 0),
-                        sizeOfRecords.getOrDefault(2, 0),
-                        maxLags.getOrDefault(2, 0L),
-                        pollDurationMillis,
-                        commitDurationMillis);
-            }
-
-            csvRecords.flush();
-            csvMeta.flush();
+            CSV_LOGGER.printMeta(numberOfRecords, sizeOfRecords, maxLags, pollDurationMillis, consumeTs, commitDurationMillis);
 
             int sumValueSize = sizeOfRecords.values().stream().mapToInt(Integer::intValue).sum();
 
@@ -153,7 +135,7 @@ public class KafkaConsumerExample {
             sumSize += sizeOfRecords.values().stream().mapToInt(Integer::intValue).sum();
 
             long totalDurationMillis = (System.currentTimeMillis() - startMillis);
-            System.out.println(consumeTs +
+            LOGGER.info(consumeTs +
                     " -> pollDuration: " + pollDurationMillis +
                     ", records: " + numberOfRecords +
                     ", totalRecords: " + totalNumberOfRecords +
@@ -163,7 +145,7 @@ public class KafkaConsumerExample {
                     ", lags: " + maxLags +
                     ", consumes: " + nConsumesPerPartition
             );
-            System.out.println(
+            LOGGER.info(
                     "   nSuccPolls: " + nSuccessfulPolls +
                     ", nFailedPolls: " + nFailedPolls +
                     ", avgPollDur: " + roundAndFormat(sumPollDuration, (nSuccessfulPolls+nFailedPolls)) +
@@ -183,7 +165,9 @@ public class KafkaConsumerExample {
             FileInputStream fis = new FileInputStream(args[0]);
             return new PropertyResourceBundle(fis);
         } else {
-            return ResourceBundle.getBundle(defaultConfigFile);
+            LOGGER.error("No config provided. \n Usage: java -jar webtrekk-data-streams-consumer-example.jar \"./application.properties\"");
+            System.exit(-1);
+            return null;
         }
     }
 
@@ -194,13 +178,7 @@ public class KafkaConsumerExample {
     }
 
     private static String roundAndFormat(long denominator, long nom) {
-        return df.format(((double) denominator) / nom);
-    }
-
-    private static CSVPrinter getCsvPrinter(String fileNameMeta, List<String> headersMeta) throws IOException {
-        FileWriter fWriterMeta = new FileWriter(fileNameMeta);
-        CSVFormat csvFormatMeta = CSVFormat.DEFAULT.withHeader(headersMeta.stream().toArray(String[]::new));
-        return new CSVPrinter(fWriterMeta,csvFormatMeta);
+        return decimalFormat.format(((double) denominator) / nom);
     }
 
     private static class MyKafkaConsumerFactory {
@@ -208,13 +186,12 @@ public class KafkaConsumerExample {
         public KafkaConsumer<byte[], String> getConsumer() {
             KafkaConsumer<byte[], String> consumer = new KafkaConsumer<>(getProperties(config));
             String topic = config.getString(Topic);
-            System.out.println("Subscribing Kafka consumer to topic: " + topic);
+            LOGGER.info("Subscribing Kafka consumer to topic: " + topic);
             consumer.subscribe(Collections.singletonList(topic));
             return consumer;
         }
 
         private Properties getProperties(ResourceBundle config) {
-
             String keyDeserializer = ByteArrayDeserializer.class.getCanonicalName();
             String valueDeserializer = StringDeserializer.class.getCanonicalName();
 
@@ -240,7 +217,6 @@ public class KafkaConsumerExample {
             props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, config.getString(SslTrustStorePassword));
             props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, config.getString(SslTrustStoreType));
 
-            // props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, "1024");
             return props;
         }
 

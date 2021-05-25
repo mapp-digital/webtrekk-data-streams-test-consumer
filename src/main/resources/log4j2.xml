@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%msg%n"/>
+        </Console>
+
+        <File name="CsvMeta" fileName="./meta.csv" append="false">
+            <PatternLayout>
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+        </File>
+        <Async name="AsyncCsvMeta">
+            <AppenderRef ref="CsvMeta"/>
+        </Async>
+
+        <File name="CsvRecords" fileName="./records.csv" append="false">
+            <PatternLayout>
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+        </File>
+        <Async name="AsyncCsvRecords">
+            <AppenderRef ref="CsvRecords"/>
+        </Async>
+    </Appenders>
+
+
+    <Loggers>
+        <!-- Logger for details csv file logging -->
+        <Logger name="csv-meta" level="OFF" additivity="false">
+            <AppenderRef ref="AsyncCsvMeta"/>
+        </Logger>
+        <Logger name="csv-records" level="OFF" additivity="false">
+            <AppenderRef ref="AsyncCsvRecords"/>
+        </Logger>
+
+        <!-- Logger to configure kafka logging output -->
+        <Logger name="org.apache.kafka" level="OFF" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <!--Logger for example app -->
+        <Logger name="com.webtrekk.datastreams" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <Root level="ERROR">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
+

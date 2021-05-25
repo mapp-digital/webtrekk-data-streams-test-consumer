@@ -1,9 +1,9 @@
-package com.webtrekk.playground.kafkaconsumer;
+package com.webtrekk.datastreams.kafkaconsumer;
 
 public class ConfigKeys {
 
     public static final String PollTimeout = "poll-timeout";
-    public static final String EnableKafkaClientLogs = "enable-kafka-client-logs";
+    public static final String EnableKafkaInfoLogs = "enable-kafka-client-info-logs";
     public static final String EnableCsvLogs = "enable-csv-logs";
 
     public static final String Endpoints = "endpoints";
