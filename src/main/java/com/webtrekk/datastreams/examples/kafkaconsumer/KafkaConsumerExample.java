@@ -1,6 +1,14 @@
-package com.webtrekk.datastreams.kafkaconsumer;
+package com.webtrekk.datastreams.examples.kafkaconsumer;
 
-import com.webtrekk.datastreams.kafkaconsumer.logging.TSVLogger;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.text.DateFormat;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -17,16 +25,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.text.DateFormat;
-import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
-import java.time.Duration;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.webtrekk.datastreams.kafkaconsumer.config.ConfigKeys.*;
+import com.webtrekk.datastreams.examples.kafkaconsumer.config.ConfigKeys;
+import com.webtrekk.datastreams.examples.kafkaconsumer.logging.TSVLogger;
 
 public class KafkaConsumerExample {
 
@@ -40,10 +40,10 @@ public class KafkaConsumerExample {
     public static void main(String[] args) throws IOException {
         config = loadResourceBundle(args);
 
-        boolean enableTsvLogs = Boolean.parseBoolean(config.getString(EnableTsvLogs));
+        boolean enableTsvLogs = Boolean.parseBoolean(config.getString(ConfigKeys.EnableTsvLogs));
         TSVLogger TSV_LOGGER = new TSVLogger(enableTsvLogs);
 
-        boolean enableKafkaClientLogs = Boolean.parseBoolean(config.getString(EnableKafkaDebugLogs));
+        boolean enableKafkaClientLogs = Boolean.parseBoolean(config.getString(ConfigKeys.EnableKafkaDebugLogs));
         if (enableKafkaClientLogs) {
             LOGGER.info("Enabling Kafka client logs");
             LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -54,8 +54,8 @@ public class KafkaConsumerExample {
 
         MyKafkaConsumerFactory kafkaConsumerFactory = new MyKafkaConsumerFactory();
         KafkaConsumer<byte[], String> consumer = kafkaConsumerFactory.getConsumer();
-        Duration pollTimeout = Duration.ofMillis(Long.parseLong(config.getString(PollTimeout)));
-        boolean autoCommit = Boolean.parseBoolean(config.getString(EnableAutoCommit));
+        Duration pollTimeout = Duration.ofMillis(Long.parseLong(config.getString(ConfigKeys.PollTimeout)));
+        boolean autoCommit = Boolean.parseBoolean(config.getString(ConfigKeys.EnableAutoCommit));
 
         Map<Integer, Integer> nRecordsPerPollPartition = new HashMap<>();
         Map<Integer, Integer> sizeValuePerPollPartition = new HashMap<>();
@@ -115,17 +115,19 @@ public class KafkaConsumerExample {
 
             int sumNRecordsPerPoll = nRecordsPerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
             int sumValueSizePerPoll = sizeValuePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
-            Set<Integer> assignedPartitions = consumer.assignment().stream().map(TopicPartition::partition).collect(Collectors.toSet());
+            Set<Integer> assignedPartitions = consumer.assignment().stream().map(TopicPartition::partition)
+                    .collect(Collectors.toSet());
 
             long startCommitMs = System.currentTimeMillis();
             if (sumNRecordsPerPoll > 0 && !autoCommit) {
                 consumer.commitSync();
-            } else  {
+            } else {
                 nEmptyPolls++;
             }
             long commitDurationMillis = System.currentTimeMillis() - startCommitMs;
 
-            TSV_LOGGER.printMeta(startPollTs, nRecordsPerPollPartition, sizeValuePerPollPartition, lagMaxMsPerPollPartition, pollDurationMs, commitDurationMillis);
+            TSV_LOGGER.printMeta(startPollTs, nRecordsPerPollPartition, sizeValuePerPollPartition,
+                    lagMaxMsPerPollPartition, pollDurationMs, commitDurationMillis);
 
             totalPollDurationMs += pollDurationMs;
             totalSumNRecords += sumNRecordsPerPoll;
@@ -135,30 +137,19 @@ public class KafkaConsumerExample {
             long totalDurationMs = (System.currentTimeMillis() - startMs);
             // statics for current poll
             LOGGER.info(startPollTs);
-            LOGGER.info("    " +
-                    "pollDuration: " + pollDurationMs +
-                    ", nRecords: " + nRecordsPerPollPartition +
-                    ", sumNRecords: " + sumNRecordsPerPoll +
-                    ", size: " + sizeValuePerPollPartition +
-                    ", sumSize: " + sumValueSizePerPoll +
-                    ", maxLagsMs: " + lagMaxMsPerPollPartition +
-                    ", assignedPartitions: " + assignedPartitions
-            );
+            LOGGER.info("    " + "pollDuration: " + pollDurationMs + ", nRecords: " + nRecordsPerPollPartition
+                    + ", sumNRecords: " + sumNRecordsPerPoll + ", size: " + sizeValuePerPollPartition + ", sumSize: "
+                    + sumValueSizePerPoll + ", maxLagsMs: " + lagMaxMsPerPollPartition + ", assignedPartitions: "
+                    + assignedPartitions);
             // statistics over all polls
-            LOGGER.info("    " +
-                    "nPolls: " + nPolls +
-                    ", nEmptyPolls: " + nEmptyPolls +
-                    ", totalNRecords: " + totalNRecordsPerPollPartition +
-                    ", consumptions: " + totalNConsumptionsPerPartition
-            );
+            LOGGER.info("    " + "nPolls: " + nPolls + ", nEmptyPolls: " + nEmptyPolls + ", totalNRecords: "
+                    + totalNRecordsPerPollPartition + ", consumptions: " + totalNConsumptionsPerPartition);
             // average statistics over all polls
-            LOGGER.info("    " +
-                    "avgPollDuration: " + roundAndFormat(totalPollDurationMs, nPolls) +
-                    ", avgNRecords/poll: " + roundAndFormat(totalSumNRecords, nPolls) +
-                    ", avgNRecords/s: " + roundAndFormat(totalSumNRecords, (totalDurationMs/1000)) +
-                    ", avgNPartitions/poll: " + roundAndFormat(totalSumNPartitions, (nPolls - nEmptyPolls)) +
-                    ", avgKByte/s: " + roundAndFormat((totalSumSizeValue/1024), (totalDurationMs/1000))
-            );
+            LOGGER.info("    " + "avgPollDuration: " + roundAndFormat(totalPollDurationMs, nPolls)
+                    + ", avgNRecords/poll: " + roundAndFormat(totalSumNRecords, nPolls) + ", avgNRecords/s: "
+                    + roundAndFormat(totalSumNRecords, (totalDurationMs / 1000)) + ", avgNPartitions/poll: "
+                    + roundAndFormat(totalSumNPartitions, (nPolls - nEmptyPolls)) + ", avgKByte/s: "
+                    + roundAndFormat((totalSumSizeValue / 1024), (totalDurationMs / 1000)));
         }
 
         // Close the consumer when necessary
@@ -170,7 +161,8 @@ public class KafkaConsumerExample {
             FileInputStream fis = new FileInputStream(args[0]);
             return new PropertyResourceBundle(fis);
         } else {
-            LOGGER.error("No config provided. \n Usage: java -jar webtrekk-data-streams-consumer-example.jar \"./application.properties\"");
+            LOGGER.error(
+                    "No config provided. \n Usage: java -jar webtrekk-data-streams-consumer-example.jar \"./application.properties\"");
             System.exit(-1);
             return null;
         }
@@ -193,7 +185,7 @@ public class KafkaConsumerExample {
     private static class MyKafkaConsumerFactory {
         public KafkaConsumer<byte[], String> getConsumer() {
             KafkaConsumer<byte[], String> consumer = new KafkaConsumer<>(getProperties(config));
-            String topic = config.getString(Topic);
+            String topic = config.getString(ConfigKeys.Topic);
             LOGGER.info("Subscribing Kafka consumer to topic: " + topic);
             consumer.subscribe(Collections.singletonList(topic));
             return consumer;
@@ -204,34 +196,39 @@ public class KafkaConsumerExample {
             String valueDeserializer = StringDeserializer.class.getCanonicalName();
 
             Properties props = new Properties();
-            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString(Endpoints));
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString(ConfigKeys.Endpoints));
 
-            props.put(ConsumerConfig.CLIENT_ID_CONFIG, config.getString(ClientId));
-            props.put(ConsumerConfig.GROUP_ID_CONFIG, config.getString(GroupId));
+            props.put(ConsumerConfig.CLIENT_ID_CONFIG, config.getString(ConfigKeys.ClientId));
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, config.getString(ConfigKeys.GroupId));
 
-            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, config.getString(AutoOffsetResetPolicy));
-            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, config.getString(EnableAutoCommit));
-            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, config.getString(MaxPollRecords));
-            props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, config.getString(MaxPartitionFetchBytes));
+            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, config.getString(ConfigKeys.AutoOffsetResetPolicy));
+            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, config.getString(ConfigKeys.EnableAutoCommit));
+            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, config.getString(ConfigKeys.MaxPollRecords));
+            props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG,
+                    config.getString(ConfigKeys.MaxPartitionFetchBytes));
 
             props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializer);
             props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer);
 
-            props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.getString(SecurityProtocol));
-            props.put(SaslConfigs.SASL_MECHANISM, config.getString(SecuritySaslMechanism));
+            props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.getString(ConfigKeys.SecurityProtocol));
+            props.put(SaslConfigs.SASL_MECHANISM, config.getString(ConfigKeys.SecuritySaslMechanism));
             props.put(SaslConfigs.SASL_JAAS_CONFIG, getJaasConfig(config));
 
-            // props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, config.getString(SslTrustStoreLocation));
-            // props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, config.getString(SslTrustStorePassword));
-            // props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, config.getString(SslTrustStoreType));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
+            // config.getString(SslTrustStoreLocation));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG,
+            // config.getString(SslTrustStorePassword));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG,
+            // config.getString(SslTrustStoreType));
 
             return props;
         }
 
         private String getJaasConfig(ResourceBundle config) {
-            String scramUser = config.getString(SecurityScramUsername);
-            String scramPassword = config.getString(SecurityScramPassword);
-            return "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"" + scramUser + "\" password=\"" + scramPassword + "\";";
+            String scramUser = config.getString(ConfigKeys.SecurityScramUsername);
+            String scramPassword = config.getString(ConfigKeys.SecurityScramPassword);
+            return "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"" + scramUser
+                    + "\" password=\"" + scramPassword + "\";";
         }
     }
 }

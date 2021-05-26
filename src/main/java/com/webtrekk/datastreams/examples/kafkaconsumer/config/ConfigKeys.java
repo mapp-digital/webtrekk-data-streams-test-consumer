@@ -1,4 +1,4 @@
-package com.webtrekk.datastreams.kafkaconsumer.config;
+package com.webtrekk.datastreams.examples.kafkaconsumer.config;
 
 public class ConfigKeys {
 

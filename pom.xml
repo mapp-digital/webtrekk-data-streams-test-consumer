@@ -5,8 +5,8 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.webtrekk.datastreams</groupId>
-    <artifactId>playground-kafka-consumer</artifactId>
+    <groupId>com.webtrekk.datastreams.examples</groupId>
+    <artifactId>kafka-consumer</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -59,7 +59,7 @@
                     <appendAssemblyId>false</appendAssemblyId>
                     <archive>
                         <manifest>
-                            <mainClass>com.webtrekk.datastreams.kafkaconsumer.KafkaConsumerExample</mainClass>
+                            <mainClass>com.webtrekk.datastreams.examples.kafkaconsumer.KafkaConsumerExample</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
