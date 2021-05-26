@@ -28,9 +28,9 @@ import org.slf4j.LoggerFactory;
 import com.webtrekk.datastreams.examples.kafkaconsumer.config.ConfigKeys;
 import com.webtrekk.datastreams.examples.kafkaconsumer.logging.TSVLogger;
 
-public class KafkaConsumerExample {
+public class KafkaConsumerTest {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerExample.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerTest.class);
 
     private static final DecimalFormat decimalFormat = new DecimalFormat("#.#");
     private static final DateFormat dateFormat = initDateFormat();
@@ -162,7 +162,7 @@ public class KafkaConsumerExample {
             return new PropertyResourceBundle(fis);
         } else {
             LOGGER.error(
-                    "No config provided. \n Usage: java -jar webtrekk-data-streams-consumer-example.jar \"./application.properties\"");
+                    "No config provided. \n Usage: java -jar webtrekk-data-streams-consumer-test.jar \"./application.properties\"");
             System.exit(-1);
             return null;
         }
