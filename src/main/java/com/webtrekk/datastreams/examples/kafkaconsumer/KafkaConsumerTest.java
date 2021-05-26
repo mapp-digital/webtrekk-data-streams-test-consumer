@@ -58,11 +58,12 @@ public class KafkaConsumerTest {
         boolean autoCommit = Boolean.parseBoolean(config.getString(ConfigKeys.EnableAutoCommit));
 
         Map<Integer, Integer> nRecordsPerPollPartition = new HashMap<>();
-        Map<Integer, Integer> sizeValuePerPollPartition = new HashMap<>();
+        Map<Integer, Integer> valueSizePerPollPartition = new HashMap<>();
         Map<Integer, Long> lagMaxMsPerPollPartition = new HashMap<>();
 
-        Map<Integer, Integer> totalNRecordsPerPollPartition = new HashMap<>();
-        Map<Integer, Integer> totalNConsumptionsPerPartition = new HashMap<>();
+        Map<Integer, Long> totalNRecordsPerPartition = new HashMap<>();
+        Map<Integer, Long> totalValueSizePerPartition = new HashMap<>();
+        Map<Integer, Long> totalNConsumptionsPerPartition = new HashMap<>();
 
         long nPolls = 0;
         long nEmptyPolls = 0;
@@ -82,7 +83,7 @@ public class KafkaConsumerTest {
             String startPollTs = DATE_FORMAT.format(new Date(startPollMs));
 
             nRecordsPerPollPartition.clear();
-            sizeValuePerPollPartition.clear();
+            valueSizePerPollPartition.clear();
             lagMaxMsPerPollPartition.clear();
 
             for (ConsumerRecord<byte[], String> record : records) {
@@ -93,11 +94,14 @@ public class KafkaConsumerTest {
                 int nRecordsTmp = nRecordsPerPollPartition.getOrDefault(partition, 0);
                 nRecordsPerPollPartition.put(partition, nRecordsTmp + 1);
 
-                int totalNRecordsTmp = totalNRecordsPerPollPartition.getOrDefault(partition, 0);
-                totalNRecordsPerPollPartition.put(partition, totalNRecordsTmp + 1);
+                long totalNRecordsTmp = totalNRecordsPerPartition.getOrDefault(partition, 0L);
+                totalNRecordsPerPartition.put(partition, totalNRecordsTmp + 1);
 
-                int sizeValueTmp = sizeValuePerPollPartition.getOrDefault(partition, 0);
-                sizeValuePerPollPartition.put(partition, sizeValueTmp + sizeValue);
+                int valueSizeTmp = valueSizePerPollPartition.getOrDefault(partition, 0);
+                valueSizePerPollPartition.put(partition, valueSizeTmp + sizeValue);
+
+                long totalValueSizeTmp = totalValueSizePerPartition.getOrDefault(partition, 0L);
+                totalValueSizePerPartition.put(partition, totalValueSizeTmp + sizeValue);
 
                 long lagRecordSec = (System.currentTimeMillis() - record.timestamp()) / 1000L;
                 long lagMaxSec = Math.max(lagMaxMsPerPollPartition.getOrDefault(partition, 0L), lagRecordSec);
@@ -109,12 +113,12 @@ public class KafkaConsumerTest {
 
             Set<Integer> consumedPartitionsPerPoll = nRecordsPerPollPartition.keySet();
             consumedPartitionsPerPoll.forEach(consumedPartition -> {
-                int nConsumptions = totalNConsumptionsPerPartition.getOrDefault(consumedPartition, 0);
+                long nConsumptions = totalNConsumptionsPerPartition.getOrDefault(consumedPartition, 0L);
                 totalNConsumptionsPerPartition.put(consumedPartition, nConsumptions + 1);
             });
 
             int sumNRecordsPerPoll = nRecordsPerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
-            int sumValueSizePerPoll = sizeValuePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
+            int sumValueSizePerPoll = valueSizePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
             Set<Integer> assignedPartitions = consumer.assignment().stream().map(TopicPartition::partition)
                     .collect(Collectors.toSet());
 
@@ -126,24 +130,26 @@ public class KafkaConsumerTest {
             }
             long commitDurationMillis = System.currentTimeMillis() - startCommitMs;
 
-            TSV_LOGGER.LogMetaInformation(startPollTs, nRecordsPerPollPartition, sizeValuePerPollPartition,
+            TSV_LOGGER.LogMetaInformation(startPollTs, nRecordsPerPollPartition, valueSizePerPollPartition,
                     lagMaxMsPerPollPartition, pollDurationMs, commitDurationMillis);
 
             totalPollDurationMs += pollDurationMs;
             totalSumNRecords += sumNRecordsPerPoll;
             totalSumNPartitions += nRecordsPerPollPartition.keySet().size();
-            totalSumSizeValue += sizeValuePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
+            totalSumSizeValue += valueSizePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
 
             long totalDurationMs = (System.currentTimeMillis() - startMs);
             // statics for current poll
             LOGGER.info(startPollTs);
             LOGGER.info("    " + "pollDuration: " + pollDurationMs + ", nRecords: " + nRecordsPerPollPartition
-                    + ", sumNRecords: " + sumNRecordsPerPoll + ", size: " + sizeValuePerPollPartition + ", sumSize: "
-                    + sumValueSizePerPoll + ", maxLagsMs: " + lagMaxMsPerPollPartition + ", assignedPartitions: "
-                    + assignedPartitions);
+                    + ", sumNRecords: " + sumNRecordsPerPoll + ", valueSize: " + valueSizePerPollPartition
+                    + ", sumValueSize: " + sumValueSizePerPoll + ", maxLagsMs: " + lagMaxMsPerPollPartition
+                    + ", assignedPartitions: " + assignedPartitions);
             // statistics over all polls
             LOGGER.info("    " + "nPolls: " + nPolls + ", nEmptyPolls: " + nEmptyPolls + ", totalNRecords: "
-                    + totalNRecordsPerPollPartition + ", consumptions: " + totalNConsumptionsPerPartition);
+                    + totalNRecordsPerPartition + ", totalSumNRecords: " + totalSumNRecords + ", totalValueSize: "
+                    + totalValueSizePerPartition + ", totalSumValueSize: " + totalSumSizeValue + ", consumptions: "
+                    + totalNConsumptionsPerPartition);
             // average statistics over all polls
             LOGGER.info("    " + "avgPollDuration: " + roundAndFormat(totalPollDurationMs, nPolls)
                     + ", avgNRecords/poll: " + roundAndFormat(totalSumNRecords, nPolls) + ", avgNRecords/s: "
