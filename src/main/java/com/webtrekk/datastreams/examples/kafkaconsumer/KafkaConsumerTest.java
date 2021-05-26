@@ -126,7 +126,7 @@ public class KafkaConsumerTest {
             }
             long commitDurationMillis = System.currentTimeMillis() - startCommitMs;
 
-            TSV_LOGGER.printMeta(startPollTs, nRecordsPerPollPartition, sizeValuePerPollPartition,
+            TSV_LOGGER.LogMetaInformation(startPollTs, nRecordsPerPollPartition, sizeValuePerPollPartition,
                     lagMaxMsPerPollPartition, pollDurationMs, commitDurationMillis);
 
             totalPollDurationMs += pollDurationMs;

@@ -24,7 +24,7 @@ public class TSVLogger {
         }
     }
 
-    public void printMeta(String consumeTs, Map<Integer, Integer> nRecordsPerPartition,
+    public void LogMetaInformation(String consumeTs, Map<Integer, Integer> nRecordsPerPartition,
             Map<Integer, Integer> sizeValuePerPartition, Map<Integer, Long> lagMaxMsPerPartition, long pollDurationMs,
             long commitDurationMs) {
         if (enableTsvLogs) {
