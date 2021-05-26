@@ -6,33 +6,33 @@
             <PatternLayout pattern="%msg%n"/>
         </Console>
 
-        <File name="CsvMeta" fileName="./meta.csv" append="false">
+        <File name="TsvMeta" fileName="./meta.tsv" append="false">
             <PatternLayout>
                 <Pattern>%m%n</Pattern>
             </PatternLayout>
         </File>
-        <Async name="AsyncCsvMeta">
-            <AppenderRef ref="CsvMeta"/>
+        <Async name="AsyncTsvMeta">
+            <AppenderRef ref="TsvMeta"/>
         </Async>
 
-        <File name="CsvRecords" fileName="./records.csv" append="false">
+        <File name="TsvRecords" fileName="./records.tsv" append="false">
             <PatternLayout>
                 <Pattern>%m%n</Pattern>
             </PatternLayout>
         </File>
-        <Async name="AsyncCsvRecords">
-            <AppenderRef ref="CsvRecords"/>
+        <Async name="AsyncTsvRecords">
+            <AppenderRef ref="TsvRecords"/>
         </Async>
     </Appenders>
 
 
     <Loggers>
-        <!-- Logger for details csv file logging -->
-        <Logger name="csv-meta" level="OFF" additivity="false">
-            <AppenderRef ref="AsyncCsvMeta"/>
+        <!-- Logger for details tsv file logging -->
+        <Logger name="tsv-meta" level="ALL" additivity="false">
+            <AppenderRef ref="AsyncTsvMeta"/>
         </Logger>
-        <Logger name="csv-records" level="OFF" additivity="false">
-            <AppenderRef ref="AsyncCsvRecords"/>
+        <Logger name="tsv-records" level="ALL" additivity="false">
+            <AppenderRef ref="AsyncTsvRecords"/>
         </Logger>
 
         <!-- Logger to configure kafka logging output -->

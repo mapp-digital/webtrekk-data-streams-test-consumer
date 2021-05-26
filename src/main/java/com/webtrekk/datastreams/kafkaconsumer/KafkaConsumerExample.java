@@ -1,12 +1,13 @@
 package com.webtrekk.datastreams.kafkaconsumer;
 
+import com.webtrekk.datastreams.kafkaconsumer.logging.TSVLogger;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.logging.log4j.Level;
@@ -16,7 +17,6 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.DateFormat;
@@ -24,8 +24,9 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Collectors;
 
-import static com.webtrekk.datastreams.kafkaconsumer.ConfigKeys.*;
+import static com.webtrekk.datastreams.kafkaconsumer.config.ConfigKeys.*;
 
 public class KafkaConsumerExample {
 
@@ -38,11 +39,13 @@ public class KafkaConsumerExample {
 
     public static void main(String[] args) throws IOException {
         config = loadResourceBundle(args);
-        boolean enableCsvLogs = Boolean.parseBoolean(config.getString(EnableCsvLogs));
-        CSVLogger CSV_LOGGER = new CSVLogger(enableCsvLogs);
 
-        boolean enableKafkaClientLogs = Boolean.parseBoolean(config.getString(EnableKafkaInfoLogs));
+        boolean enableTsvLogs = Boolean.parseBoolean(config.getString(EnableTsvLogs));
+        TSVLogger TSV_LOGGER = new TSVLogger(enableTsvLogs);
+
+        boolean enableKafkaClientLogs = Boolean.parseBoolean(config.getString(EnableKafkaDebugLogs));
         if (enableKafkaClientLogs) {
+            LOGGER.info("Enabling Kafka client logs");
             LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
             Configuration conf = ctx.getConfiguration();
             conf.getLoggerConfig("org.apache.kafka").setLevel(Level.DEBUG);
@@ -52,107 +55,109 @@ public class KafkaConsumerExample {
         MyKafkaConsumerFactory kafkaConsumerFactory = new MyKafkaConsumerFactory();
         KafkaConsumer<byte[], String> consumer = kafkaConsumerFactory.getConsumer();
         Duration pollTimeout = Duration.ofMillis(Long.parseLong(config.getString(PollTimeout)));
+        boolean autoCommit = Boolean.parseBoolean(config.getString(EnableAutoCommit));
 
-        Map<Integer, Integer> numberOfRecords = new HashMap<>();
-        Map<Integer, Integer> sizeOfRecords = new HashMap<>();
-        Map<Integer, Long> maxLags = new HashMap<>();
-        Map<Integer, Long> currentOffsets = new HashMap<>();
-        Map<Integer, Integer> totalNumberOfRecords = new HashMap<>();
-        Map<Integer, Integer> nConsumesPerPartition = new HashMap<>();
+        Map<Integer, Integer> nRecordsPerPollPartition = new HashMap<>();
+        Map<Integer, Integer> sizeValuePerPollPartition = new HashMap<>();
+        Map<Integer, Long> lagMaxMsPerPollPartition = new HashMap<>();
 
-        long nSuccessfulPolls = 1;
-        long nFailedPolls = 1;
-        long sumRecords = 0;
-        long sumPollDuration = 0;
-        long sumNPartitions = 0;
-        long sumSize = 0;
+        Map<Integer, Integer> totalNRecordsPerPollPartition = new HashMap<>();
+        Map<Integer, Integer> totalNConsumptionsPerPartition = new HashMap<>();
 
-        long startMillis = System.currentTimeMillis();
+        long nPolls = 0;
+        long nEmptyPolls = 0;
+        long totalSumNRecords = 0;
+        long totalPollDurationMs = 0;
+        long totalSumNPartitions = 0;
+        long totalSumSizeValue = 0;
+
+        long startMs = System.currentTimeMillis();
+
         while (true) {
-            long startPollMillis = System.currentTimeMillis();
+            long startPollMs = System.currentTimeMillis();
             ConsumerRecords<byte[], String> records = consumer.poll(pollTimeout);
-            long pollDurationMillis = System.currentTimeMillis() - startPollMillis;
+            long pollDurationMs = System.currentTimeMillis() - startPollMs;
 
-            String consumeTs = dateFormat.format(new Date(startPollMillis));
+            nPolls++;
+            String startPollTs = dateFormat.format(new Date(startPollMs));
 
-            int recordsPerPoll = 0;
-            numberOfRecords.clear();
-            sizeOfRecords.clear();
-            maxLags.clear();
-            currentOffsets.clear();
-
-            Set<Integer> consumedPartitions = new HashSet<>();
+            nRecordsPerPollPartition.clear();
+            sizeValuePerPollPartition.clear();
+            lagMaxMsPerPollPartition.clear();
 
             for (ConsumerRecord<byte[], String> record : records) {
-                recordsPerPoll++;
-
-                int keySize = record.key().length;
-                int valueSize = record.value().length();
+                int sizeKey = record.key().length;
+                int sizeValue = record.value().length();
                 int partition = record.partition();
 
-                int count = numberOfRecords.getOrDefault(partition, 0);
-                numberOfRecords.put(partition, count + 1);
+                int nRecordsTmp = nRecordsPerPollPartition.getOrDefault(partition, 0);
+                nRecordsPerPollPartition.put(partition, nRecordsTmp + 1);
 
-                int totalCount = totalNumberOfRecords.getOrDefault(partition, 0);
-                totalNumberOfRecords.put(partition, totalCount + 1);
+                int totalNRecordsTmp = totalNRecordsPerPollPartition.getOrDefault(partition, 0);
+                totalNRecordsPerPollPartition.put(partition, totalNRecordsTmp + 1);
 
-                int size = sizeOfRecords.getOrDefault(partition, 0);
-                sizeOfRecords.put(partition, size + valueSize);
+                int sizeValueTmp = sizeValuePerPollPartition.getOrDefault(partition, 0);
+                sizeValuePerPollPartition.put(partition, sizeValueTmp + sizeValue);
 
-                long recordLag = (System.currentTimeMillis() - record.timestamp()) / 1000L;
-                long oldLag = maxLags.getOrDefault(partition, 0L);
-                maxLags.put(partition, Math.max(oldLag, recordLag));
-
-                currentOffsets.put(partition, record.offset());
-
-                consumedPartitions.add(partition);
+                long lagRecordSec = (System.currentTimeMillis() - record.timestamp()) / 1000L;
+                long lagMaxSec = Math.max(lagMaxMsPerPollPartition.getOrDefault(partition, 0L), lagRecordSec);
+                lagMaxMsPerPollPartition.put(partition, lagMaxSec);
 
                 String recordTs = dateFormat.format(new Date(record.timestamp()));
-                CSV_LOGGER.logRecordInformation(consumeTs, record, keySize, valueSize, partition, recordTs);
+                TSV_LOGGER.logRecordInformation(startPollTs, recordTs, record, sizeKey, sizeValue);
             }
 
-            consumedPartitions.forEach(consumedPartition -> {
-                int count = nConsumesPerPartition.getOrDefault(consumedPartition, 0);
-                nConsumesPerPartition.put(consumedPartition, count + 1);
+            Set<Integer> consumedPartitionsPerPoll = nRecordsPerPollPartition.keySet();
+            consumedPartitionsPerPoll.forEach(consumedPartition -> {
+                int nConsumptions = totalNConsumptionsPerPartition.getOrDefault(consumedPartition, 0);
+                totalNConsumptionsPerPartition.put(consumedPartition, nConsumptions + 1);
             });
 
-            long beginCommitMillis = System.currentTimeMillis();
-            if (recordsPerPoll > 0) {
-                nSuccessfulPolls++;
+            int sumNRecordsPerPoll = nRecordsPerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
+            int sumValueSizePerPoll = sizeValuePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
+            Set<Integer> assignedPartitions = consumer.assignment().stream().map(TopicPartition::partition).collect(Collectors.toSet());
+
+            long startCommitMs = System.currentTimeMillis();
+            if (sumNRecordsPerPoll > 0 && !autoCommit) {
                 consumer.commitSync();
             } else  {
-                nFailedPolls++;
+                nEmptyPolls++;
             }
-            long commitDurationMillis = System.currentTimeMillis() - beginCommitMillis;
+            long commitDurationMillis = System.currentTimeMillis() - startCommitMs;
 
-            CSV_LOGGER.printMeta(numberOfRecords, sizeOfRecords, maxLags, pollDurationMillis, consumeTs, commitDurationMillis);
+            TSV_LOGGER.printMeta(startPollTs, nRecordsPerPollPartition, sizeValuePerPollPartition, lagMaxMsPerPollPartition, pollDurationMs, commitDurationMillis);
 
-            int sumValueSize = sizeOfRecords.values().stream().mapToInt(Integer::intValue).sum();
+            totalPollDurationMs += pollDurationMs;
+            totalSumNRecords += sumNRecordsPerPoll;
+            totalSumNPartitions += nRecordsPerPollPartition.keySet().size();
+            totalSumSizeValue += sizeValuePerPollPartition.values().stream().mapToInt(Integer::intValue).sum();
 
-            sumPollDuration += pollDurationMillis;
-            sumRecords += numberOfRecords.values().stream().mapToInt(Integer::intValue).sum();
-            sumNPartitions += numberOfRecords.keySet().size();
-            sumSize += sizeOfRecords.values().stream().mapToInt(Integer::intValue).sum();
-
-            long totalDurationMillis = (System.currentTimeMillis() - startMillis);
-            LOGGER.info(consumeTs +
-                    " -> pollDuration: " + pollDurationMillis +
-                    ", records: " + numberOfRecords +
-                    ", totalRecords: " + totalNumberOfRecords +
-                    ", recordsSum: " + recordsPerPoll +
-                    ", size: " + sizeOfRecords +
-                    ", sizeSum: " + sumValueSize +
-                    ", lags: " + maxLags +
-                    ", consumes: " + nConsumesPerPartition
+            long totalDurationMs = (System.currentTimeMillis() - startMs);
+            // statics for current poll
+            LOGGER.info(startPollTs);
+            LOGGER.info("    " +
+                    "pollDuration: " + pollDurationMs +
+                    ", nRecords: " + nRecordsPerPollPartition +
+                    ", sumNRecords: " + sumNRecordsPerPoll +
+                    ", size: " + sizeValuePerPollPartition +
+                    ", sumSize: " + sumValueSizePerPoll +
+                    ", maxLagsMs: " + lagMaxMsPerPollPartition +
+                    ", assignedPartitions: " + assignedPartitions
             );
-            LOGGER.info(
-                    "   nSuccPolls: " + nSuccessfulPolls +
-                    ", nFailedPolls: " + nFailedPolls +
-                    ", avgPollDur: " + roundAndFormat(sumPollDuration, (nSuccessfulPolls+nFailedPolls)) +
-                    ", avgNRecords: " + roundAndFormat(sumRecords, (nSuccessfulPolls+nFailedPolls)) +
-                    ", avgRecords/s: " + roundAndFormat(sumRecords, (totalDurationMillis/1000)) +
-                    ", avgNPartitions: " + roundAndFormat(sumNPartitions, (nSuccessfulPolls+nFailedPolls)) +
-                    ", KByte/s: " + roundAndFormat((sumSize/1024), (totalDurationMillis/1000))
+            // statistics over all polls
+            LOGGER.info("    " +
+                    "nPolls: " + nPolls +
+                    ", nEmptyPolls: " + nEmptyPolls +
+                    ", totalNRecords: " + totalNRecordsPerPollPartition +
+                    ", consumptions: " + totalNConsumptionsPerPartition
+            );
+            // average statistics over all polls
+            LOGGER.info("    " +
+                    "avgPollDuration: " + roundAndFormat(totalPollDurationMs, nPolls) +
+                    ", avgNRecords/poll: " + roundAndFormat(totalSumNRecords, nPolls) +
+                    ", avgNRecords/s: " + roundAndFormat(totalSumNRecords, (totalDurationMs/1000)) +
+                    ", avgNPartitions/poll: " + roundAndFormat(totalSumNPartitions, (nPolls - nEmptyPolls)) +
+                    ", avgKByte/s: " + roundAndFormat((totalSumSizeValue/1024), (totalDurationMs/1000))
             );
         }
 
@@ -172,17 +177,20 @@ public class KafkaConsumerExample {
     }
 
     private static DateFormat initDateFormat() {
-        DateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-        f.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return f;
+        DateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return simpleDateFormat;
     }
 
     private static String roundAndFormat(long denominator, long nom) {
-        return decimalFormat.format(((double) denominator) / nom);
+        if (nom == 0) {
+            return "n/a";
+        } else {
+            return decimalFormat.format(((double) denominator) / nom);
+        }
     }
 
     private static class MyKafkaConsumerFactory {
-
         public KafkaConsumer<byte[], String> getConsumer() {
             KafkaConsumer<byte[], String> consumer = new KafkaConsumer<>(getProperties(config));
             String topic = config.getString(Topic);
@@ -213,9 +221,9 @@ public class KafkaConsumerExample {
             props.put(SaslConfigs.SASL_MECHANISM, config.getString(SecuritySaslMechanism));
             props.put(SaslConfigs.SASL_JAAS_CONFIG, getJaasConfig(config));
 
-            props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, config.getString(SslTrustStoreLocation));
-            props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, config.getString(SslTrustStorePassword));
-            props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, config.getString(SslTrustStoreType));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, config.getString(SslTrustStoreLocation));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, config.getString(SslTrustStorePassword));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, config.getString(SslTrustStoreType));
 
             return props;
         }

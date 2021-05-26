@@ -152,5 +152,5 @@ Temporary Items
 
 # End of https://www.toptal.com/developers/gitignore/api/osx,intellij,java,maven
 
-meta.csv
-record_sizes.csv
+meta.tsv
+records.tsv
