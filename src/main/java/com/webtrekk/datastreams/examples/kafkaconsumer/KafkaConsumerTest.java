@@ -32,8 +32,8 @@ public class KafkaConsumerTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerTest.class);
 
-    private static final DecimalFormat decimalFormat = new DecimalFormat("#.#");
-    private static final DateFormat dateFormat = initDateFormat();
+    private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#.#");
+    private static final DateFormat DATE_FORMAT = initDateFormat();
 
     private static ResourceBundle config = null;
 
@@ -79,7 +79,7 @@ public class KafkaConsumerTest {
             long pollDurationMs = System.currentTimeMillis() - startPollMs;
 
             nPolls++;
-            String startPollTs = dateFormat.format(new Date(startPollMs));
+            String startPollTs = DATE_FORMAT.format(new Date(startPollMs));
 
             nRecordsPerPollPartition.clear();
             sizeValuePerPollPartition.clear();
@@ -103,7 +103,7 @@ public class KafkaConsumerTest {
                 long lagMaxSec = Math.max(lagMaxMsPerPollPartition.getOrDefault(partition, 0L), lagRecordSec);
                 lagMaxMsPerPollPartition.put(partition, lagMaxSec);
 
-                String recordTs = dateFormat.format(new Date(record.timestamp()));
+                String recordTs = DATE_FORMAT.format(new Date(record.timestamp()));
                 TSV_LOGGER.logRecordInformation(startPollTs, recordTs, record, sizeKey, sizeValue);
             }
 
@@ -178,7 +178,7 @@ public class KafkaConsumerTest {
         if (nom == 0) {
             return "n/a";
         } else {
-            return decimalFormat.format(((double) denominator) / nom);
+            return DECIMAL_FORMAT.format(((double) denominator) / nom);
         }
     }
 
