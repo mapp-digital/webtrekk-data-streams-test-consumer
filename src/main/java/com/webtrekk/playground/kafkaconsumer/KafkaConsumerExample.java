@@ -7,8 +7,8 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.log4j.BasicConfigurator;
@@ -21,6 +21,7 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.webtrekk.playground.kafkaconsumer.ConfigKeys.*;
 
@@ -30,7 +31,7 @@ public class KafkaConsumerExample {
 
     private static final DateFormat dateFormat = initDateFormat();
 
-    private static final String defaultConfigFile = "application";
+    private static final String defaultConfigFile = "application-pub";
     private static ResourceBundle config = null;
 
     public static void main(String[] args) throws IOException {
@@ -172,6 +173,10 @@ public class KafkaConsumerExample {
                     ", avgNPartitions: " + roundAndFormat(sumNPartitions, (nSuccessfulPolls+nFailedPolls)) +
                     ", KByte/s: " + roundAndFormat((sumSize/1024), (totalDurationMillis/1000))
             );
+
+            System.out.println(
+                    "   assignments:" + consumer.assignment().stream().map(TopicPartition::partition).collect(Collectors.toSet())
+            );
         }
 
         // Close the consumer when necessary
@@ -236,9 +241,9 @@ public class KafkaConsumerExample {
             props.put(SaslConfigs.SASL_MECHANISM, config.getString(SecuritySaslMechanism));
             props.put(SaslConfigs.SASL_JAAS_CONFIG, getJaasConfig(config));
 
-            props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, config.getString(SslTrustStoreLocation));
-            props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, config.getString(SslTrustStorePassword));
-            props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, config.getString(SslTrustStoreType));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, config.getString(SslTrustStoreLocation));
+            // props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, config.getString(SslTrustStorePassword));
+            //props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, config.getString(SslTrustStoreType));
 
             // props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, "1024");
             return props;
