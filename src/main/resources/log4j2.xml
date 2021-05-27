@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%msg%n"/>
+        </Console>
+
+        <File name="TsvMeta" fileName="./meta.tsv" append="false">
+            <PatternLayout>
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+        </File>
+        <Async name="AsyncTsvMeta">
+            <AppenderRef ref="TsvMeta"/>
+        </Async>
+
+        <File name="TsvRecords" fileName="./records.tsv" append="false">
+            <PatternLayout>
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+        </File>
+        <Async name="AsyncTsvRecords">
+            <AppenderRef ref="TsvRecords"/>
+        </Async>
+    </Appenders>
+
+
+    <Loggers>
+        <!-- Logger for details tsv file logging -->
+        <Logger name="tsv-meta" level="ALL" additivity="false">
+            <AppenderRef ref="AsyncTsvMeta"/>
+        </Logger>
+        <Logger name="tsv-records" level="ALL" additivity="false">
+            <AppenderRef ref="AsyncTsvRecords"/>
+        </Logger>
+
+        <!-- Logger to configure kafka logging output -->
+        <Logger name="org.apache.kafka" level="OFF" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <!--Logger for example app -->
+        <Logger name="com.webtrekk.datastreams" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <Root level="ERROR">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
+
