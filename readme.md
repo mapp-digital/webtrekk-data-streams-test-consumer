@@ -1,13 +1,13 @@
-# Test & Analytics Kafka Consumer for Mapp DataStreams
+# Test & Analytics Kafka Consumer for Mapp (Webtrekk) Data Streams
 
 ## Configuration
 
-The project uses an `application.properties` file to configure the java application. The configuration file needs to be
-provided when running the app on console.
+The project uses an `application.properties` file to configure the standalone java application. The configuration file
+needs to be provided when running the app on console.
 
-Please find an example of the properties file in `./dist` folder.
+Please find a template of the properties file in the `./dist` folder.
 
-To complete the config add the following - sensitive - information provided by Mapp:
+To complete the config add the following – sensitive – information provided by Mapp (Webtrekk):
 
 ```
 consumer-group=***TBD***
@@ -26,31 +26,37 @@ max-poll-records=1000 (Kafka default: 500)
 
 ## Run
 
-A runnable - fat - jar is provided in the `./dist` folder.
+A precompiled, runnable – fat – jar is provided in the `./dist` folder.
 
-To run the test application simply navigate into the `./dist` folder and run:
+To run the application simply navigate into the `./dist` folder and run:
 
 ```
 java -jar webtrekk-data-streams-consumer-test.jar ./application.properties
 ```
 
+Don't forget to update the `application.propertes` beforehand as explained above.
+
 ## Logging for test & analytics
+
+The app uses simple console logging to log metrics after each consumption from the data stream. Additionally, logging of
+the Kafka Consumer can be turned on. Also logging of further metrics to file is possible.
 
 ### TSV (tab separated values) logging
 
-Setting `enable-tsv-logs` to `true` will enable additional logging to 2 TSV files:
+Setting `enable-tsv-logs` to `true` in the `application.propertis` file will enable additional logging to 2 TSV files:
 
-- meta.tsv:
-- records:tsv:
+- **meta.tsv**: Metrics about consumption of the data stream.
+- **records:tsv**: Information about each consumed record
 
-Hit: The files are overwritten on every start of the application.
+Note: The files are overwritten on every start of the application.
 
 ### Kafka Client Logs
 
-Setting `enable-kafka-client-debug-logs` to `true` will enable additional debug logs of the Kafka consumer on console.
+Setting `enable-kafka-client-debug-logs` to `true` in the `application.propertis` file will enable additional debug logs
+of the Kafka consumer on console.
 
 ## Build it
 
-The project uses maven assembly plugin to build a runnable - fat - jar containing all dependencies.
+The project uses the maven assembly plugin to build a runnable – fat – jar containing all dependencies.
 
 Use `mvn package` on project root to build the jar. The jar will be located in the `./target/` folder of the project.
