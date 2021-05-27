@@ -220,13 +220,6 @@ public class KafkaConsumerTest {
             props.put(SaslConfigs.SASL_MECHANISM, config.getString(ConfigKeys.SecuritySaslMechanism));
             props.put(SaslConfigs.SASL_JAAS_CONFIG, getJaasConfig(config));
 
-            // props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
-            // config.getString(SslTrustStoreLocation));
-            // props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG,
-            // config.getString(SslTrustStorePassword));
-            // props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG,
-            // config.getString(SslTrustStoreType));
-
             return props;
         }
 

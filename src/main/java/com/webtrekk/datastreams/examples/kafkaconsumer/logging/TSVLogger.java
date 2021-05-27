@@ -18,7 +18,7 @@ public class TSVLogger {
     public TSVLogger(boolean enableTsvLogs) {
         this.enableTsvLogs = enableTsvLogs;
         if (this.enableTsvLogs) {
-            LOGGER.info("Enabling TSV logging");
+            LOGGER.info("Enabling TSV file logging");
             LOGGER_TSV_RECORDS.info("consumeTs\tpartition\toffset\tsizeKey\tsizeValue\trecordTimestamp\trecordValue");
             LOGGER_TSV_META.info("consumeTs\tnRecords\tsizeValue\tlagMaxMs\tpollDuration\tcommitDuration");
         }
